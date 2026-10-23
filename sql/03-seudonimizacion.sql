@@ -7,8 +7,9 @@ CREATE SCHEMA analitica;
 /* DESDE EL ESQUEMA "pii" CREAMOS LA TABLA LLAMADA "mapa_cliente" CON LOS CAMPOS DE
     "token" COMO LLAVE PRIMARIA, "cliente_id" COMO ATRIBUTO UNICO EL CUAL
     SE REFERENCIA DEL CAMPO "id" DE LA TABLA "clientes" DEL ESQUEMA PUBLICO. */
-CREATE TABLE pii.mapa_cliente (  token UUID PRIMARY KEY,   cliente_id BIGINT UNIQUE
-REFERENCES public.clientes(id));
+CREATE TABLE pii.mapa_cliente (  
+	token UUID PRIMARY KEY, 
+	cliente_id BIGINT UNIQUE REFERENCES public.clientes(id));
 
 
 --HABILITAMOS LA EXTENSION "pgcrypto" EN CASO DE QUE NO SE ENCUENTRE ACTIVA
@@ -19,3 +20,37 @@ SELECT gen_random_uuid(),  id FROM clientes;
 
 --VERIFICAMOS QUE SE HAYAN GENERADO LOS TOKENS
 SELECT * FROM pii.mapa_cliente;
+
+
+/* CREAMOS UNA TABLA DESDE EL ESQUEMA DE "analitica" 
+    LLAMADA "clientes", EL CUAL NO TOMARA DIRECTAMENTE LOS DATOS, SI NO
+    QUE TENDRA QUE PASAR POR "mapa_cliente" DEL ESQUEMA "pii" Y ESTE PASARA
+    A LA TABLA "clientes" DEL ESQUEMA PUBLICO. */
+CREATE TABLE analitica.clientes AS SELECT
+    m.token AS cliente_token,
+    c.edad,
+    c.ciudad,
+    c.codigo_postal,
+    c.fecha_alta
+FROM pii.mapa_cliente m
+JOIN clientes c
+    ON c.id = m.cliente_id;
+--VERIFICAMOS EL RESULTADO
+SELECT * FROM analitica.clientes;
+
+--CREAMOS EL ROL DE "analista"
+CREATE ROLE analista NOLOGIN;
+--CONCEDEMOS ACCESO A LA TABLA QUE GENERAMOS PARA ANALITICA
+GRANT USAGE ON SCHEMA analItica TO analista;
+GRANT SELECT ON analitica.clientes TO analista;
+
+--REVOCAMOS LOS ACCESOS DE LAS SIGUIENTES TABLAS
+REVOKE ALL ON pii.mapa_cliente FROM analista;
+REVOKE ALL ON public.clientes FROM analista;
+
+--CONSULTAMOS LA TABLA QUE ESTA PERMITIDA POR ANALITICA
+SELECT * FROM analitica.clientes;
+--CONSULTAMOS AL MAPA DE CORRESPONDECIA
+SELECT * FROM pii.mapa_cliente;
+--CONSULTAMOS A LA TABLA CON LOS DATOS ORIGINALES
+SELECT * FROM public.clientes;
